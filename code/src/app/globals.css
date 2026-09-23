@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --paper: #fdfbf7;
+  --paper-deep: #f2ebd8;
+  --pine: #4e8867;
+  --pine-dark: #3b6d50;
+  --seal: #8f7d62;
+  --seal-light: #c0b3a1;
+  --ochre: #df8f1f;
+  --ochre-light: #f2d89d;
+  --ink: #3d3d3d;
+  --ink-light: #6d6d6d;
+  --sidebar-width: 236px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background-color: var(--paper);
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', STSong, SimSun, serif;
+  font-weight: 600;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--seal-light);
+  border-radius: 3px;
+}
+
+/* Heatmap cells */
+.heatmap-cell {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  transition: transform 0.15s;
+}
+.heatmap-cell:hover {
+  transform: scale(1.2);
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.card-hover:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+
+/* Page transition */
+.page-enter {
+  animation: fadeIn 0.3s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile sidebar overlay */
+.sidebar-overlay {
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(2px);
+}
+
+/* Button primary */
+.btn-primary {
+  @apply bg-pine-600 text-white px-4 py-2 rounded-lg hover:bg-pine-700 transition-colors;
+}
+.btn-secondary {
+  @apply bg-paper-200 text-ink-900 px-4 py-2 rounded-lg hover:bg-paper-300 transition-colors;
+}
+
+/* Form input */
+.form-input {
+  @apply w-full px-3 py-2 bg-white border border-paper-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pine-400 focus:border-transparent;
+}
+
+/* Tag pill */
+.tag-pill {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-paper-200 text-seal-700;
+}

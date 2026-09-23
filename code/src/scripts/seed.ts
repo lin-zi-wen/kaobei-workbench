@@ -35,7 +35,13 @@ function insertMany(table: string, rows: any[]) {
   const stmt = db.prepare(`INSERT INTO ${table} (${colStr}) VALUES (${placeholders})`);
   let count = 0;
   for (const row of rows) {
-    const values = cols.map(c => row[c] ?? null);
+    const values = cols.map(c => {
+      const v = row[c];
+      if (v === undefined || v === null) return null;
+      if (typeof v === "boolean") return v ? 1 : 0;
+      if (typeof v === "number") return v;
+      return String(v);
+    });
     stmt.run(values);
     count++;
   }
