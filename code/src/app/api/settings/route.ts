@@ -1,22 +1,42 @@
-import { NextResponse } from "next/server";
-import db from "@/db";
+import { db } from "@/lib/db";
+import { settings } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { successResponse, errorResponse, validationError } from "@/lib/utils";
 
 export async function GET() {
-  const row = db.prepare("SELECT * FROM settings WHERE id = 1").get() as any;
-  return NextResponse.json(row || {});
+  try {
+    const rows = db.select().from(settings).all();
+    return successResponse(rows[0] ?? null);
+  } catch (e: any) {
+    return errorResponse("INTERNAL_ERROR", e.message, undefined, 500);
+  }
 }
 
-export async function PATCH(req: Request) {
-  const body = await req.json();
-  const sets: string[] = [];
-  const vals: any[] = [];
-  for (const [k, v] of Object.entries(body)) {
-    const col = k.replace(/[A-Z]/g, m => "_" + m.toLowerCase());
-    sets.push(`${col} = ?`);
-    vals.push(v);
+const updateSchema = z.object({
+  theme: z.enum(["light","dark","system"]).optional(),
+  animationEnabled: z.boolean().optional(),
+  soundEnabled: z.boolean().optional(),
+  dailyQuoteEnabled: z.boolean().optional(),
+  focusDefaultDuration: z.number().int().min(1).optional(),
+  focusMaxRounds: z.number().int().min(1).optional(),
+  autoBackupEnabled: z.boolean().optional(),
+}).passthrough();
+
+export async function PUT(req: Request) {
+  try {
+    const body = await req.json();
+    const data = updateSchema.parse(body);
+    const rows = db.select().from(settings).all();
+    if (rows.length === 0) {
+      db.insert(settings).values({ id: 1, ...data } as any).run();
+    } else {
+      db.update(settings).set(data as any).where(eq(settings.id, 1)).run();
+    }
+    const updated = db.select().from(settings).all()[0];
+    return successResponse(updated);
+  } catch (e: any) {
+    if (e instanceof z.ZodError) return validationError(e);
+    return errorResponse("INTERNAL_ERROR", e.message, undefined, 500);
   }
-  if (sets.length === 0) return NextResponse.json({ ok: true });
-  vals.push(1);
-  db.prepare(`UPDATE settings SET ${sets.join(", ")} WHERE id = ?`).run(...vals);
-  return NextResponse.json({ ok: true });
 }

@@ -1,18 +1,26 @@
-import { NextResponse } from "next/server";
-import db from "@/db";
+import { db } from "@/lib/db";
+import { mistakeRecords, questions } from "@/db/schema";
+import { eq, and, sql } from "drizzle-orm";
+import { successResponse, errorResponse } from "@/lib/utils";
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
-  const due = searchParams.get("due");
-  let sql = `SELECT mr.*, q.stem as questionStem, q.type as questionType, q.answer as correctAnswer, q.explanation
-    FROM mistake_records mr
-    JOIN questions q ON mr.question_id = q.id
-    WHERE mr.removed_at IS NULL`;
-  const params: any[] = [];
-  if (status) { sql += " AND mr.status = ?"; params.push(status); }
-  if (due === "today") { sql += " AND mr.next_review_date <= date('now')"; }
-  sql += " ORDER BY mr.next_review_date ASC";
-  const rows = db.prepare(sql).all(...params) as any[];
-  return NextResponse.json({ mistakes: rows });
+  try {
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get("status");
+    const subjectId = searchParams.get("subject_id");
+    const errorTag = searchParams.get("error_tag");
+    let query = db.select().from(mistakeRecords) as any;
+    const conditions = [];
+    if (status) conditions.push(eq(mistakeRecords.status, status));
+    if (errorTag) conditions.push(eq(mistakeRecords.errorTag, errorTag));
+    if (conditions.length > 0) query = query.where(and(...conditions));
+    const rows = query.all();
+    const enriched = rows.map((r: any) => {
+      const q = db.select().from(questions).where(eq(questions.id, r.questionId)).get();
+      return { ...r, question: q || null };
+    });
+    return successResponse(enriched);
+  } catch (e: any) {
+    return errorResponse("INTERNAL_ERROR", e.message, undefined, 500);
+  }
 }

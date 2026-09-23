@@ -36,11 +36,9 @@ function insertMany(table: string, rows: any[]) {
   let count = 0;
   for (const row of rows) {
     const values = cols.map(c => {
-      const v = row[c];
-      if (v === undefined || v === null) return null;
+      const v = row[c] ?? null;
       if (typeof v === "boolean") return v ? 1 : 0;
-      if (typeof v === "number") return v;
-      return String(v);
+      return v;
     });
     stmt.run(values);
     count++;

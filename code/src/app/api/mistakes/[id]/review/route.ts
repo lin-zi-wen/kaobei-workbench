@@ -1,38 +1,45 @@
-import { NextResponse } from "next/server";
-import db from "@/db";
+import { db } from "@/lib/db";
+import { mistakeRecords } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { successResponse, errorResponse, validationError, getTodayISO, addDays, nowISO } from "@/lib/utils";
 
-function sm2Next(quality: number, stage: number, consecutiveCorrect: number) {
-  if (quality < 3) return { stage: 0, interval: 1, consecutiveCorrect: 0 };
-  const cc = consecutiveCorrect + 1;
-  let interval: number;
-  if (stage === 0) interval = 1;
-  else if (stage === 1) interval = 3;
-  else interval = Math.round((stage === 2 ? 3 : (stage - 1) * 2.5) * 1.5);
-  return { stage: stage + 1, interval, consecutiveCorrect: cc };
-}
+const schema = z.object({ feedback: z.enum(["correct","wrong","unsure"]) });
+const intervals = [1, 1, 3, 7, 14];
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const body = await req.json();
-  const { quality } = body; // 0=wrong, 3=uncertain, 5=correct
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const { feedback } = schema.parse(body);
+    const mr = db.select().from(mistakeRecords).where(eq(mistakeRecords.id, Number(id))).get();
+    if (!mr) return errorResponse("NOT_FOUND", "错题不存在", undefined, 404);
 
-  const mr = db.prepare("SELECT * FROM mistake_records WHERE id = ?").get(id) as any;
-  if (!mr) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const today = getTodayISO();
+    let update: any = { reviewCount: (mr.reviewCount || 0) + 1, lastReviewedAt: nowISO() };
 
-  const calc = sm2Next(quality, mr.sm2_stage, mr.consecutive_correct);
-  const nextDate = new Date();
-  nextDate.setDate(nextDate.getDate() + calc.interval);
+    if (feedback === "wrong" || feedback === "unsure") {
+      update.sm2Stage = 1;
+      update.nextReviewDate = addDays(today, 1);
+      update.consecutiveCorrect = 0;
+      update.status = "unmastered";
+    } else {
+      const newStage = Math.min((mr.sm2Stage || 0) + 1, 4);
+      update.sm2Stage = newStage;
+      update.nextReviewDate = addDays(today, intervals[newStage]);
+      update.consecutiveCorrect = (mr.consecutiveCorrect || 0) + 1;
+      if (update.consecutiveCorrect >= 2) {
+        update.status = "mastered";
+        update.removedAt = nowISO();
+      } else {
+        update.status = "reviewing";
+      }
+    }
 
-  let status = mr.status;
-  if (calc.consecutiveCorrect >= 3) status = "mastered";
-  else if (calc.stage > 0) status = "reviewing";
-
-  db.prepare(`
-    UPDATE mistake_records
-    SET sm2_stage = ?, next_review_date = ?, consecutive_correct = ?, review_count = review_count + 1,
-        status = ?, last_reviewed_at = ?, updated_at = ?
-    WHERE id = ?
-  `).run(calc.stage, nextDate.toISOString().slice(0, 10), calc.consecutiveCorrect, status, new Date().toISOString(), Date.now(), id);
-
-  return NextResponse.json({ ok: true, nextReviewDate: nextDate.toISOString().slice(0, 10), status });
+    db.update(mistakeRecords).set(update).where(eq(mistakeRecords.id, Number(id))).run();
+    return successResponse({ reviewed: true, nextReviewDate: update.nextReviewDate, status: update.status });
+  } catch (e: any) {
+    if (e instanceof z.ZodError) return validationError(e);
+    return errorResponse("INTERNAL_ERROR", e.message, undefined, 500);
+  }
 }
